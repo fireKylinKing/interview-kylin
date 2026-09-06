@@ -24,12 +24,13 @@ public class ResumeAnalysisEntity {
     // 总分 (0-100)
     private Integer overallScore;
     
-    // 各维度评分
-    private Integer contentScore;      // 内容完整性 (0-25)
-    private Integer structureScore;    // 结构清晰度 (0-20)
-    private Integer skillMatchScore;   // 技能匹配度 (0-25)
-    private Integer expressionScore;   // 表达专业性 (0-15)
-    private Integer projectScore;      // 项目经验 (0-15)
+    // 各维度评分（前五项之和 = overallScore，满分 100；jdAlignmentScore 不计入总分）
+    private Integer projectScore;      // 项目经验与技术深度 (0-40)
+    private Integer skillMatchScore;   // 技能匹配度 (0-20)
+    private Integer contentScore;      // 内容完整性 (0-15)
+    private Integer structureScore;    // 结构清晰度 (0-15)
+    private Integer expressionScore;   // 表达专业性 (0-10)
+    private Integer jdAlignmentScore;  // JD 对齐度 (0-20)，不计入总分，无 JD 时为 0
     
     // 简历摘要
     @Column(columnDefinition = "TEXT")
@@ -115,6 +116,14 @@ public class ResumeAnalysisEntity {
     
     public void setProjectScore(Integer projectScore) {
         this.projectScore = projectScore;
+    }
+
+    public Integer getJdAlignmentScore() {
+        return jdAlignmentScore;
+    }
+
+    public void setJdAlignmentScore(Integer jdAlignmentScore) {
+        this.jdAlignmentScore = jdAlignmentScore;
     }
     
     public String getSummary() {

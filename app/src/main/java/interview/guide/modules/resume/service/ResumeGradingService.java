@@ -1,9 +1,12 @@
 package interview.guide.modules.resume.service;
 
 import interview.guide.common.ai.LlmProviderRegistry;
+import interview.guide.common.ai.PromptSanitizer;
+import interview.guide.common.ai.PromptSecurityConstants;
 import interview.guide.common.ai.StructuredOutputInvoker;
 import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
+import interview.guide.infrastructure.file.PiiSanitizer;
 import interview.guide.modules.interview.model.ResumeAnalysisResponse;
 import interview.guide.modules.interview.model.ResumeAnalysisResponse.ScoreDetail;
 import interview.guide.modules.interview.model.ResumeAnalysisResponse.Suggestion;
@@ -35,6 +38,8 @@ public class ResumeGradingService {
     private final PromptTemplate userPromptTemplate;
     private final BeanOutputConverter<ResumeAnalysisResponseDTO> outputConverter;
     private final StructuredOutputInvoker structuredOutputInvoker;
+    private final PiiSanitizer piiSanitizer;
+    private final PromptSanitizer promptSanitizer;
     
     // 中间DTO用于接收AI响应
     private record ResumeAnalysisResponseDTO(
@@ -50,7 +55,8 @@ public class ResumeGradingService {
         int structureScore,
         int skillMatchScore,
         int expressionScore,
-        int projectScore
+        int projectScore,
+        int jdAlignmentScore
     ) {}
     
     private record SuggestionDTO(
@@ -64,9 +70,13 @@ public class ResumeGradingService {
             LlmProviderRegistry llmProviderRegistry,
             StructuredOutputInvoker structuredOutputInvoker,
             ResumeAnalysisProperties properties,
-            ResourceLoader resourceLoader) throws IOException {
+            ResourceLoader resourceLoader,
+            PiiSanitizer piiSanitizer,
+            PromptSanitizer promptSanitizer) throws IOException {
         this.llmProviderRegistry = llmProviderRegistry;
         this.structuredOutputInvoker = structuredOutputInvoker;
+        this.piiSanitizer = piiSanitizer;
+        this.promptSanitizer = promptSanitizer;
         this.systemPromptTemplate = new PromptTemplate(
             resourceLoader.getResource(properties.getSystemPromptPath())
                 .getContentAsString(StandardCharsets.UTF_8)
@@ -80,20 +90,34 @@ public class ResumeGradingService {
     
     /**
      * 分析简历并返回评分和建议
-     * 
+     *
      * @param resumeText 简历文本内容
      * @return 分析结果
      */
     public ResumeAnalysisResponse analyzeResume(String resumeText) {
-        log.info("开始分析简历，文本长度: {} 字符", resumeText.length());
-        
+        return analyzeResume(resumeText, null);
+    }
+
+    /**
+     * 分析简历并返回评分和建议（支持 JD 对齐评分）
+     *
+     * @param resumeText 简历文本内容
+     * @param jdText 职位描述内容（可选，传 null 则不评分 JD 对齐度）
+     * @return 分析结果
+     */
+    public ResumeAnalysisResponse analyzeResume(String resumeText, String jdText) {
+        boolean hasJd = jdText != null && !jdText.isBlank();
+        log.info("开始分析简历，文本长度: {} 字符，JD: {}",
+            resumeText.length(), hasJd ? "已提供" : "未提供");
+
         try {
             // 加载系统提示词
             String systemPrompt = systemPromptTemplate.render();
-            
+
             // 加载用户提示词并填充变量
             Map<String, Object> variables = new HashMap<>();
-            variables.put("resumeText", resumeText);
+            variables.put("resumeText", piiSanitizer.sanitize(resumeText));
+            variables.put("jdSection", hasJd ? buildJdSection(jdText) : "");
             String userPrompt = userPromptTemplate.render(variables);
             
             // 添加格式指令到系统提示词
@@ -136,11 +160,12 @@ public class ResumeGradingService {
      */
     private ResumeAnalysisResponse convertToResponse(ResumeAnalysisResponseDTO dto, String originalText) {
         ScoreDetail scoreDetail = new ScoreDetail(
+            dto.scoreDetail().projectScore(),
+            dto.scoreDetail().skillMatchScore(),
             dto.scoreDetail().contentScore(),
             dto.scoreDetail().structureScore(),
-            dto.scoreDetail().skillMatchScore(),
             dto.scoreDetail().expressionScore(),
-            dto.scoreDetail().projectScore()
+            dto.scoreDetail().jdAlignmentScore()
         );
         
         List<Suggestion> suggestions = dto.suggestions().stream()
@@ -163,7 +188,7 @@ public class ResumeGradingService {
     private ResumeAnalysisResponse createErrorResponse(String originalText, String errorMessage) {
         return new ResumeAnalysisResponse(
             0,
-            new ScoreDetail(0, 0, 0, 0, 0),
+            new ScoreDetail(0, 0, 0, 0, 0, 0),
             "分析过程中出现错误: " + errorMessage,
             List.of(),
             List.of(new Suggestion(
@@ -174,5 +199,14 @@ public class ResumeGradingService {
             )),
             originalText
         );
+    }
+
+    private String buildJdSection(String jdText) {
+        if (jdText == null || jdText.isBlank()) {
+            return "";
+        }
+        return PromptSecurityConstants.DATA_BOUNDARY_INSTRUCTION + "\n" +
+            "## 职位描述（JD）\n请根据以下 JD 要求评估候选人简历与岗位的匹配程度，在 jdAlignmentScore 维度评分：\n" +
+            promptSanitizer.wrapWithDelimiters("jd", promptSanitizer.sanitize(jdText));
     }
 }

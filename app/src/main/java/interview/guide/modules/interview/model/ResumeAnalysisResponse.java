@@ -26,14 +26,15 @@ public record ResumeAnalysisResponse(
 ) {
     
     /**
-     * 各维度评分详情
+     * 各维度评分详情（前五项之和 = overallScore，满分 100；jdAlignmentScore 不计入总分）
      */
     public record ScoreDetail(
-        int contentScore,       // 内容完整性 (0-25)
-        int structureScore,     // 结构清晰度 (0-20)
-        int skillMatchScore,    // 技能匹配度 (0-25)
-        int expressionScore,    // 表达专业性 (0-15)
-        int projectScore        // 项目经验 (0-15)
+        int projectScore,       // 项目经验与技术深度 (0-40)
+        int skillMatchScore,    // 技能匹配度 (0-20)
+        int contentScore,       // 内容完整性 (0-15)
+        int structureScore,     // 结构清晰度 (0-15)
+        int expressionScore,    // 表达专业性 (0-10)
+        int jdAlignmentScore    // JD 对齐度 (0-20)，不计入总分，无 JD 时为 0
     ) {}
     
     /**

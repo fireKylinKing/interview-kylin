@@ -30,6 +30,7 @@ public interface ResumeMapper {
     @Mapping(target = "skillMatchScore", source = "skillMatchScore", qualifiedByName = "nullToZero")
     @Mapping(target = "expressionScore", source = "expressionScore", qualifiedByName = "nullToZero")
     @Mapping(target = "projectScore", source = "projectScore", qualifiedByName = "nullToZero")
+    @Mapping(target = "jdAlignmentScore", source = "jdAlignmentScore", qualifiedByName = "nullToZero")
     ResumeAnalysisResponse.ScoreDetail toScoreDetail(ResumeAnalysisEntity entity);
 
     // ========== ResumeListItemDTO 映射 ==========
@@ -120,6 +121,7 @@ public interface ResumeMapper {
     @Mapping(target = "skillMatchScore", source = "scoreDetail.skillMatchScore")
     @Mapping(target = "expressionScore", source = "scoreDetail.expressionScore")
     @Mapping(target = "projectScore", source = "scoreDetail.projectScore")
+    @Mapping(target = "jdAlignmentScore", source = "scoreDetail.jdAlignmentScore")
     ResumeAnalysisEntity toAnalysisEntity(ResumeAnalysisResponse response);
 
     /**
@@ -135,6 +137,7 @@ public interface ResumeMapper {
     @Mapping(target = "skillMatchScore", source = "scoreDetail.skillMatchScore")
     @Mapping(target = "expressionScore", source = "scoreDetail.expressionScore")
     @Mapping(target = "projectScore", source = "scoreDetail.projectScore")
+    @Mapping(target = "jdAlignmentScore", source = "scoreDetail.jdAlignmentScore")
     void updateAnalysisEntity(ResumeAnalysisResponse response, @MappingTarget ResumeAnalysisEntity entity);
 
     // ========== 工具方法 ==========
