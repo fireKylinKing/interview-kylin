@@ -29,3 +29,6 @@ frontend/test-results/
 frontend/playwright-report/
 /.agents
 skills-lock.json
+
+# 本地存储数据
+.local-storage/
