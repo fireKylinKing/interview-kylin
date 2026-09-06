@@ -57,7 +57,8 @@ class OpenApiServiceTest {
   }
 
   private OpenApiAnalyzeRequest request(String resumeText) {
-    return new OpenApiAnalyzeRequest("Java 后端工程师 JD", resumeText, "java-backend", "mid", 0, null);
+    return new OpenApiAnalyzeRequest("Java 后端工程师 JD", resumeText, "java-backend", "mid", 0, null,
+        "standard", null, null, null, "both");
   }
 
   @Test

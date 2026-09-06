@@ -8,6 +8,8 @@
 ## 难度级别
 {difficultyDescription}
 
+{styleSection}
+
 {jdSection}
 
 ## 候选人简历

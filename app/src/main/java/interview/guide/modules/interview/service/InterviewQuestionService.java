@@ -128,6 +128,22 @@ public class InterviewQuestionService {
             int questionCount,
             List<HistoricalQuestion> historicalQuestions,
             String jdText) {
+        return generateQuestionsBySkill(llmProvider, skillId, difficulty, resumeText,
+            questionCount, historicalQuestions, jdText, null);
+    }
+
+    /**
+     * @param styleDirective 面试风格指令块（可选，由 OpenAPI 调用方经 InterviewStyles 组装）
+     */
+    public List<InterviewQuestionDTO> generateQuestionsBySkill(
+            String llmProvider,
+            String skillId,
+            String difficulty,
+            String resumeText,
+            int questionCount,
+            List<HistoricalQuestion> historicalQuestions,
+            String jdText,
+            String styleDirective) {
 
         SkillDTO skill = skillService.getSkill(skillId);
         String difficultyDesc = resolveDifficulty(difficulty);
@@ -138,7 +154,7 @@ public class InterviewQuestionService {
         String historicalSection = buildHistoricalSection(historicalQuestions);
         if (!hasResume) {
             return generateDirectionOnly(questionChatClient, skill, difficultyDesc, questionCount,
-                historicalSection, jdText);
+                historicalSection, jdText, styleDirective);
         }
 
         int resumeCount = Math.max(1, (int) Math.round(questionCount * RESUME_QUESTION_RATIO));
@@ -149,12 +165,12 @@ public class InterviewQuestionService {
 
         CompletableFuture<List<InterviewQuestionDTO>> resumeFuture = CompletableFuture.supplyAsync(
             () -> generateResumeQuestions(questionChatClient, resumeText, resumeCount, skill,
-                difficultyDesc, historicalSection, jdText),
+                difficultyDesc, historicalSection, jdText, styleDirective),
             questionExecutor);
 
         CompletableFuture<List<InterviewQuestionDTO>> directionFuture = CompletableFuture.supplyAsync(
             () -> generateDirectionOnly(questionChatClient, skill, difficultyDesc, directionCount,
-                historicalSection, jdText),
+                historicalSection, jdText, styleDirective),
             questionExecutor);
 
         List<InterviewQuestionDTO> resumeQuestions;
@@ -165,7 +181,7 @@ public class InterviewQuestionService {
             log.error("简历题生成失败，降级为全方向题", e.getCause());
             directionFuture.cancel(true);
             return generateDirectionOnly(questionChatClient, skill, difficultyDesc, questionCount,
-                historicalSection, jdText);
+                historicalSection, jdText, styleDirective);
         }
 
         try {
@@ -191,7 +207,8 @@ public class InterviewQuestionService {
 
     private List<InterviewQuestionDTO> generateResumeQuestions(
             ChatClient questionClient, String resumeText, int questionCount,
-            SkillDTO skill, String difficultyDesc, String historicalSection, String jdText) {
+            SkillDTO skill, String difficultyDesc, String historicalSection, String jdText,
+            String styleDirective) {
         try {
             Map<String, Object> variables = new HashMap<>();
             variables.put("questionCount", questionCount);
@@ -202,6 +219,7 @@ public class InterviewQuestionService {
             variables.put("resumeText", piiSanitizer.sanitize(resumeText));
             variables.put("historicalSection", historicalSection);
             variables.put("jdSection", buildJdSection(jdText));
+            variables.put("styleSection", styleDirective != null ? styleDirective : "");
 
             String systemPrompt = resumeSystemPromptTemplate.render()
                 + buildSkillPersonaSection(skill)
@@ -228,7 +246,7 @@ public class InterviewQuestionService {
 
     private List<InterviewQuestionDTO> generateDirectionOnly(
             ChatClient questionClient, SkillDTO skill, String difficultyDesc,
-            int questionCount, String historicalSection, String jdText) {
+            int questionCount, String historicalSection, String jdText, String styleDirective) {
         Map<String, Integer> allocation = skillService.calculateAllocation(skill.categories(), questionCount);
         String allocationTable = skillService.buildAllocationDescription(allocation, skill.categories());
 
@@ -246,6 +264,7 @@ public class InterviewQuestionService {
             variables.put("historicalSection", historicalSection);
             variables.put("referenceSection", skillService.buildReferenceSection(skill, allocation));
             variables.put("jdSection", buildJdSection(jdText));
+            variables.put("styleSection", styleDirective != null ? styleDirective : "");
 
             String systemPrompt = skillSystemPromptTemplate.render()
                 + buildSkillPersonaSection(skill)

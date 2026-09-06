@@ -32,3 +32,6 @@ skills-lock.json
 
 # 本地存储数据
 .local-storage/
+
+# 本地运行日志
+bootrun.log

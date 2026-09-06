@@ -13,6 +13,8 @@
 |------|------|------|
 {allocationTable}
 
+{styleSection}
+
 ## 已考知识点（避免重复）
 {historicalSection}
 

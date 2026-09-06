@@ -53,7 +53,9 @@ public class OpenApiService {
 
     streamProducer.submitTask(new OpenApiStreamProducer.OpenApiTaskPayload(
         taskId, resumeText, request.jdText(), request.skillId(),
-        difficulty, questionCount, request.llmProvider()
+        difficulty, questionCount, request.llmProvider(),
+        request.style(), request.focusTags(), request.extraInstructions(),
+        request.previousQuestions(), request.mode()
     ));
 
     log.info("OpenAPI 任务已提交: taskId={}, skillId={}", taskId, request.skillId());

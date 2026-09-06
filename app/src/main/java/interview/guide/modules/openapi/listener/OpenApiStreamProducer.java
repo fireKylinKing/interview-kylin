@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -15,7 +16,9 @@ public class OpenApiStreamProducer extends AbstractStreamProducer<OpenApiStreamP
 
   public record OpenApiTaskPayload(
       String taskId, String resumeText, String jdText,
-      String skillId, String difficulty, int questionCount, String llmProvider
+      String skillId, String difficulty, int questionCount, String llmProvider,
+      String style, List<String> focusTags, String extraInstructions,
+      List<String> previousQuestions, String mode
   ) {}
 
   public OpenApiStreamProducer(RedisService redisService) {
@@ -52,6 +55,24 @@ public class OpenApiStreamProducer extends AbstractStreamProducer<OpenApiStreamP
     }
     if (payload.llmProvider() != null) {
       msg.put(AsyncTaskStreamConstants.FIELD_LLM_PROVIDER, payload.llmProvider());
+    }
+    if (payload.style() != null) {
+      msg.put(AsyncTaskStreamConstants.FIELD_STYLE, payload.style());
+    }
+    if (payload.focusTags() != null && !payload.focusTags().isEmpty()) {
+      msg.put(AsyncTaskStreamConstants.FIELD_FOCUS_TAGS, String.join(",", payload.focusTags()));
+    }
+    if (payload.extraInstructions() != null) {
+      msg.put(AsyncTaskStreamConstants.FIELD_EXTRA_INSTRUCTIONS, payload.extraInstructions());
+    }
+    if (payload.previousQuestions() != null && !payload.previousQuestions().isEmpty()) {
+      List<String> flattened = payload.previousQuestions().stream()
+          .map(q -> q == null ? "" : q.replace("\n", " "))
+          .toList();
+      msg.put(AsyncTaskStreamConstants.FIELD_PREVIOUS_QUESTIONS, String.join("\n", flattened));
+    }
+    if (payload.mode() != null) {
+      msg.put(AsyncTaskStreamConstants.FIELD_MODE, payload.mode());
     }
     return msg;
   }

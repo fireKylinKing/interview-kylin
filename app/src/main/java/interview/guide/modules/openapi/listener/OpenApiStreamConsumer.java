@@ -1,12 +1,15 @@
 package interview.guide.modules.openapi.listener;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import interview.guide.common.ai.PromptSanitizer;
 import interview.guide.common.async.AbstractStreamConsumer;
 import interview.guide.common.constant.AsyncTaskStreamConstants;
 import interview.guide.infrastructure.redis.RedisService;
+import interview.guide.modules.interview.model.HistoricalQuestion;
 import interview.guide.modules.interview.model.InterviewQuestionDTO;
 import interview.guide.modules.interview.model.ResumeAnalysisResponse;
 import interview.guide.modules.interview.service.InterviewQuestionService;
+import interview.guide.modules.openapi.InterviewStyles;
 import interview.guide.modules.openapi.config.OpenApiProperties;
 import interview.guide.modules.resume.service.ResumeGradingService;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +17,7 @@ import org.redisson.api.stream.StreamMessageId;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,24 +35,29 @@ public class OpenApiStreamConsumer extends AbstractStreamConsumer<OpenApiStreamC
   private final InterviewQuestionService questionService;
   private final OpenApiProperties properties;
   private final ObjectMapper objectMapper;
+  private final PromptSanitizer promptSanitizer;
 
   public OpenApiStreamConsumer(
       RedisService redisService,
       ResumeGradingService gradingService,
       InterviewQuestionService questionService,
       OpenApiProperties properties,
-      ObjectMapper objectMapper
+      ObjectMapper objectMapper,
+      PromptSanitizer promptSanitizer
   ) {
     super(redisService);
     this.gradingService = gradingService;
     this.questionService = questionService;
     this.properties = properties;
     this.objectMapper = objectMapper;
+    this.promptSanitizer = promptSanitizer;
   }
 
   record OpenApiPayload(
       String taskId, String resumeText, String jdText,
-      String skillId, String difficulty, int questionCount, String llmProvider
+      String skillId, String difficulty, int questionCount, String llmProvider,
+      String style, List<String> focusTags, String extraInstructions,
+      List<String> previousQuestions, String mode
   ) {}
 
   @Override
@@ -88,6 +97,9 @@ public class OpenApiStreamConsumer extends AbstractStreamConsumer<OpenApiStreamC
         properties.getDefaultDifficulty());
     int questionCount = parseInt(data.get(AsyncTaskStreamConstants.FIELD_QUESTION_COUNT),
         properties.getDefaultQuestionCount());
+    List<String> focusTags = splitAndTrim(data.get(AsyncTaskStreamConstants.FIELD_FOCUS_TAGS), ",");
+    List<String> previousQuestions = splitAndTrim(
+        data.get(AsyncTaskStreamConstants.FIELD_PREVIOUS_QUESTIONS), "\n");
     return new OpenApiPayload(
         taskId,
         data.get(AsyncTaskStreamConstants.FIELD_RESUME_TEXT),
@@ -95,7 +107,12 @@ public class OpenApiStreamConsumer extends AbstractStreamConsumer<OpenApiStreamC
         skillId,
         difficulty,
         questionCount,
-        data.get(AsyncTaskStreamConstants.FIELD_LLM_PROVIDER)
+        data.get(AsyncTaskStreamConstants.FIELD_LLM_PROVIDER),
+        data.get(AsyncTaskStreamConstants.FIELD_STYLE),
+        focusTags,
+        data.get(AsyncTaskStreamConstants.FIELD_EXTRA_INSTRUCTIONS),
+        previousQuestions,
+        data.get(AsyncTaskStreamConstants.FIELD_MODE)
     );
   }
 
@@ -115,25 +132,35 @@ public class OpenApiStreamConsumer extends AbstractStreamConsumer<OpenApiStreamC
   protected void processBusiness(OpenApiPayload payload) {
     try {
       String taskKey = TASK_KEY_PREFIX + payload.taskId();
+      boolean questionsOnly = "questions".equals(payload.mode());
+      boolean analysisOnly = "analysis".equals(payload.mode());
 
-      // 1. 简历分析（如果有简历文本）
+      // 1. 简历分析（有简历文本且非 questions-only 模式）
       ResumeAnalysisResponse resumeAnalysis = null;
-      if (payload.resumeText() != null && !payload.resumeText().isBlank()) {
+      if (!questionsOnly && payload.resumeText() != null && !payload.resumeText().isBlank()) {
         log.info("OpenAPI 开始简历分析: taskId={}", payload.taskId());
         resumeAnalysis = gradingService.analyzeResume(payload.resumeText(), payload.jdText());
       }
 
-      // 2. 生成面试题
-      log.info("OpenAPI 开始生成面试题: taskId={}, skillId={}", payload.taskId(), payload.skillId());
-      List<InterviewQuestionDTO> questions = questionService.generateQuestionsBySkill(
-          payload.llmProvider(),
-          payload.skillId(),
-          payload.difficulty(),
-          payload.resumeText(),
-          payload.questionCount(),
-          List.of(),
-          payload.jdText()
-      );
+      // 2. 生成面试题（analysis-only 模式跳过）
+      List<InterviewQuestionDTO> questions = null;
+      if (!analysisOnly) {
+        String styleDirective = InterviewStyles.compose(
+            payload.style(), payload.focusTags(), payload.extraInstructions(), promptSanitizer);
+        List<HistoricalQuestion> historical = toHistoricalQuestions(payload.previousQuestions());
+        log.info("OpenAPI 开始生成面试题: taskId={}, skillId={}, style={}, focusTags={}",
+            payload.taskId(), payload.skillId(), payload.style(), payload.focusTags());
+        questions = questionService.generateQuestionsBySkill(
+            payload.llmProvider(),
+            payload.skillId(),
+            payload.difficulty(),
+            payload.resumeText(),
+            payload.questionCount(),
+            historical,
+            payload.jdText(),
+            styleDirective
+        );
+      }
 
       // 3. 构建结果并存入 Redis
       TaskResult result = new TaskResult(resumeAnalysis, questions);
@@ -142,10 +169,31 @@ public class OpenApiStreamConsumer extends AbstractStreamConsumer<OpenApiStreamC
       redisService().hSet(taskKey, STATUS_FIELD, "COMPLETED");
       redisService().hSet(taskKey, RESULT_FIELD, resultJson);
       redisService().expire(taskKey, Duration.ofSeconds(properties.getTaskTtlSeconds()));
-      log.info("OpenAPI 任务完成: taskId={}, questions={}", payload.taskId(), questions.size());
+      log.info("OpenAPI 任务完成: taskId={}, questions={}",
+          payload.taskId(), questions == null ? 0 : questions.size());
     } catch (Exception e) {
       throw new RuntimeException("OpenAPI 任务处理失败: " + e.getMessage(), e);
     }
+  }
+
+  private List<HistoricalQuestion> toHistoricalQuestions(List<String> previousQuestions) {
+    if (previousQuestions == null || previousQuestions.isEmpty()) {
+      return List.of();
+    }
+    return previousQuestions.stream()
+        .filter(q -> q != null && !q.isBlank())
+        .map(q -> new HistoricalQuestion(q, null, null))
+        .toList();
+  }
+
+  private List<String> splitAndTrim(String joined, String separator) {
+    if (joined == null || joined.isBlank()) {
+      return List.of();
+    }
+    return Arrays.stream(joined.split(separator))
+        .map(String::trim)
+        .filter(s -> !s.isEmpty())
+        .toList();
   }
 
   @Override
@@ -176,6 +224,24 @@ public class OpenApiStreamConsumer extends AbstractStreamConsumer<OpenApiStreamC
       }
       if (payload.llmProvider() != null) {
         message.put(AsyncTaskStreamConstants.FIELD_LLM_PROVIDER, payload.llmProvider());
+      }
+      if (payload.style() != null) {
+        message.put(AsyncTaskStreamConstants.FIELD_STYLE, payload.style());
+      }
+      if (payload.focusTags() != null && !payload.focusTags().isEmpty()) {
+        message.put(AsyncTaskStreamConstants.FIELD_FOCUS_TAGS, String.join(",", payload.focusTags()));
+      }
+      if (payload.extraInstructions() != null) {
+        message.put(AsyncTaskStreamConstants.FIELD_EXTRA_INSTRUCTIONS, payload.extraInstructions());
+      }
+      if (payload.previousQuestions() != null && !payload.previousQuestions().isEmpty()) {
+        List<String> flattened = payload.previousQuestions().stream()
+            .map(q -> q == null ? "" : q.replace("\n", " "))
+            .toList();
+        message.put(AsyncTaskStreamConstants.FIELD_PREVIOUS_QUESTIONS, String.join("\n", flattened));
+      }
+      if (payload.mode() != null) {
+        message.put(AsyncTaskStreamConstants.FIELD_MODE, payload.mode());
       }
       redisService().streamAdd(AsyncTaskStreamConstants.OPENAPI_STREAM_KEY, message,
           AsyncTaskStreamConstants.STREAM_MAX_LEN);

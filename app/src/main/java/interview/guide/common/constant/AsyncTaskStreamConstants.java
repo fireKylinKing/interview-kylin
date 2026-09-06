@@ -197,4 +197,9 @@ public final class AsyncTaskStreamConstants {
     public static final String FIELD_RESUME_TEXT = "resumeText";
     public static final String FIELD_JD_TEXT = "jdText";
     public static final String FIELD_SKILL_ID = "skillId";
+    public static final String FIELD_STYLE = "style";
+    public static final String FIELD_FOCUS_TAGS = "focusTags";
+    public static final String FIELD_EXTRA_INSTRUCTIONS = "extraInstructions";
+    public static final String FIELD_PREVIOUS_QUESTIONS = "previousQuestions";
+    public static final String FIELD_MODE = "mode";
 }

@@ -10,6 +10,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import interview.guide.common.ai.PromptSanitizer;
+import interview.guide.common.config.LlmProviderProperties;
 import interview.guide.common.constant.AsyncTaskStreamConstants;
 import interview.guide.infrastructure.redis.RedisService;
 import interview.guide.modules.interview.service.InterviewQuestionService;
@@ -40,12 +42,15 @@ class OpenApiStreamConsumerTest {
     redisService = mock(RedisService.class);
     lenient().when(redisService.expire(anyString(), any())).thenReturn(true);
     consumer = new OpenApiStreamConsumer(
-        redisService, gradingService, questionService, new OpenApiProperties(), new ObjectMapper());
+        redisService, gradingService, questionService, new OpenApiProperties(), new ObjectMapper(),
+        new PromptSanitizer(new LlmProviderProperties()));
   }
 
   private OpenApiStreamConsumer.OpenApiPayload payload() {
     return new OpenApiStreamConsumer.OpenApiPayload(
-        "task-1", "简历全文", "JD 全文", "java-backend", "mid", 10, "deepseek");
+        "task-1", "简历全文", "JD 全文", "java-backend", "mid", 10, "deepseek",
+        "deep_dive", java.util.List.of("稳定性"), "重点考察银行场景",
+        java.util.List.of("旧题一"), "both");
   }
 
   @Test
@@ -63,6 +68,9 @@ class OpenApiStreamConsumerTest {
     assertEquals("JD 全文", message.get(AsyncTaskStreamConstants.FIELD_JD_TEXT));
     assertEquals("deepseek", message.get(AsyncTaskStreamConstants.FIELD_LLM_PROVIDER));
     assertEquals("1", message.get(AsyncTaskStreamConstants.FIELD_RETRY_COUNT));
+    assertEquals("deep_dive", message.get(AsyncTaskStreamConstants.FIELD_STYLE));
+    assertEquals("稳定性", message.get(AsyncTaskStreamConstants.FIELD_FOCUS_TAGS));
+    assertEquals("旧题一", message.get(AsyncTaskStreamConstants.FIELD_PREVIOUS_QUESTIONS));
   }
 
   @Test
