@@ -34,6 +34,11 @@ POST /api/openapi/analyze
 | difficulty | string | 否 | 难度：`junior` / `mid` / `senior`，默认 `mid` |
 | questionCount | int | 否 | 面试题数量，3-20，默认 10 |
 | llmProvider | string | 否 | LLM 提供商，不填使用系统默认 |
+| style | string | 否 | 面试风格：`standard`（标准初面）/ `deep_dive`（深挖验证）/ `scenario`（业务场景模拟）/ `quick`（快筛速面），默认 standard |
+| focusTags | string | 否 | 考察重点标签，逗号分隔（技术深度/稳定性/求职动机/量化成果验证/JD 匹配盲区/沟通表达/合规与风险意识/团队协作），最多 4 个 |
+| extraInstructions | string | 否 | 补充出题要求（≤500 字符） |
+| previousQuestions | string | 否 | 历史已出题目（换行分隔，≤30 条），用于避免重复出题 |
+| mode | string | 否 | 任务模式：`both`（评分+出题，默认）/ `questions`（仅出题）/ `analysis`（仅评分） |
 
 #### 请求示例
 
