@@ -131,7 +131,6 @@ public class InterviewSessionService {
             request.resumeText(),
             request.questionCount(),
             historicalQuestions,
-            request.customCategories(),
             request.jdText()
         );
 
@@ -170,11 +169,10 @@ public class InterviewSessionService {
             sessionId,
             request.resumeText() != null ? request.resumeText() : "",
             request.resumeId(),
-            null,
-            null,
             questions,
             0,
-            SessionStatus.CREATED
+            SessionStatus.CREATED,
+            request.jdText()
         );
 
         return new InterviewSessionDTO(

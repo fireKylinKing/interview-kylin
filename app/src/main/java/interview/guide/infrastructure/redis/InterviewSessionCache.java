@@ -57,6 +57,7 @@ public class InterviewSessionCache {
         private String questionsJson;  // 序列化的问题列表
         private int currentIndex;
         private SessionStatus status;
+        private String jdText;  // 职位描述（可选）
 
         public CachedSession() {
         }
@@ -65,6 +66,21 @@ public class InterviewSessionCache {
                             String interviewCategory,
                             List<InterviewQuestionDTO> questions, int currentIndex,
                             SessionStatus status, ObjectMapper objectMapper) {
+            this(sessionId, resumeText, resumeId, knowledgeBaseId, interviewCategory,
+                questions, currentIndex, status, objectMapper, null);
+        }
+
+        public CachedSession(String sessionId, String resumeText, Long resumeId,
+                            List<InterviewQuestionDTO> questions, int currentIndex,
+                            SessionStatus status, ObjectMapper objectMapper, String jdText) {
+            this(sessionId, resumeText, resumeId, null, null, questions, currentIndex,
+                status, objectMapper, jdText);
+        }
+
+        private CachedSession(String sessionId, String resumeText, Long resumeId,
+                             Long knowledgeBaseId, String interviewCategory,
+                             List<InterviewQuestionDTO> questions, int currentIndex,
+                             SessionStatus status, ObjectMapper objectMapper, String jdText) {
             this.sessionId = sessionId;
             this.resumeText = resumeText;
             this.resumeId = resumeId;
@@ -72,6 +88,7 @@ public class InterviewSessionCache {
             this.interviewCategory = interviewCategory;
             this.currentIndex = currentIndex;
             this.status = status;
+            this.jdText = jdText;
             try {
                 this.questionsJson = objectMapper.writeValueAsString(questions);
             } catch (JacksonException e) {
@@ -100,6 +117,25 @@ public class InterviewSessionCache {
             sessionId, resumeText, resumeId, knowledgeBaseId, interviewCategory,
             questions, currentIndex, status, objectMapper
         );
+        redisService.set(key, cachedSession, SESSION_TTL);
+        if (resumeId != null && isUnfinishedStatus(status)) {
+            saveResumeSessionMapping(resumeId, sessionId);
+        }
+        log.debug("会话已缓存: sessionId={}, resumeId={}, kbId={}, status={}",
+            sessionId, resumeId, knowledgeBaseId, status);
+    }
+
+    /**
+     * 保存会话到缓存（支持 JD）
+     */
+    public void saveSession(String sessionId, String resumeText, Long resumeId,
+                           List<InterviewQuestionDTO> questions, int currentIndex,
+                           SessionStatus status, String jdText) {
+        String key = buildSessionKey(sessionId);
+        CachedSession cachedSession = new CachedSession(
+            sessionId, resumeText, resumeId, null, null,
+            questions, currentIndex, status, objectMapper, jdText
+        );
 
         redisService.set(key, cachedSession, SESSION_TTL);
 
@@ -108,8 +144,8 @@ public class InterviewSessionCache {
             saveResumeSessionMapping(resumeId, sessionId);
         }
 
-        log.debug("会话已缓存: sessionId={}, resumeId={}, kbId={}, status={}",
-            sessionId, resumeId, knowledgeBaseId, status);
+        log.debug("会话已缓存: sessionId={}, resumeId={}, status={}",
+            sessionId, resumeId, status);
     }
 
     /**

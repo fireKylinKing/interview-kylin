@@ -1,9 +1,9 @@
 package interview.guide.modules.interview.model;
 
-import interview.guide.modules.interview.skill.InterviewSkillService.CategoryDTO;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import interview.guide.modules.interview.skill.InterviewSkillService.CategoryDTO;
 
 import java.util.List;
 
@@ -24,7 +24,7 @@ public record CreateInterviewRequest(
     String llmProvider,     // LLM提供商
 
     @NotBlank(message = "面试主题不能为空")
-    String skillId,         // 面试主题 ID（如 java-backend, frontend, custom 等）
+    String skillId,         // 面试主题 ID（如 java-backend, frontend 等）
 
     String difficulty,      // 难度级别: junior / mid / senior
 
