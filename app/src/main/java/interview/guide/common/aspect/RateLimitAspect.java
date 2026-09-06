@@ -173,6 +173,7 @@ public class RateLimitAspect {
             case GLOBAL -> keyPrefix + ":global";
             case IP -> keyPrefix + ":ip:" + getClientIp();
             case USER -> keyPrefix + ":user:" + getCurrentUserId();
+            case API_KEY -> keyPrefix + ":apikey:" + getApiKey();
         };
     }
 
@@ -275,7 +276,15 @@ public class RateLimitAspect {
 
         return "anonymous";
     }
-
     private record RateLimitContext(RateLimit rule, String key) {
+    }
+
+    private String getApiKey() {
+        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attributes == null) {
+            return "anonymous";
+        }
+        String apiKey = attributes.getRequest().getHeader("X-API-Key");
+        return apiKey != null ? apiKey : "anonymous";
     }
 }

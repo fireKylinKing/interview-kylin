@@ -44,7 +44,11 @@ public @interface RateLimit {
         /**
          * 用户限流：按用户ID限流
          */
-        USER
+        USER,
+        /**
+         * API Key限流：按请求头中的 X-API-Key 限流
+         */
+        API_KEY
     }
 
     /**

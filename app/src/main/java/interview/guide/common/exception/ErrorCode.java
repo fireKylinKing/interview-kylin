@@ -81,7 +81,14 @@ public enum ErrorCode {
     MODULE_NOT_FOUND(11008, "模块不存在"),
     VOICE_CONFIG_READ_FAILED(11009, "读取语音服务配置失败"),
     VOICE_CONFIG_WRITE_FAILED(11010, "写入语音服务配置失败"),
-    VOICE_CONFIG_TEST_FAILED(11011, "语音服务连通性测试失败");
+    VOICE_CONFIG_TEST_FAILED(11011, "语音服务连通性测试失败"),
+
+    // ========== OpenAPI模块错误 12xxx ==========
+    OPENAPI_TASK_NOT_FOUND(12001, "任务不存在或已过期"),
+    OPENAPI_INVALID_REQUEST(12002, "请求参数无效"),
+    OPENAPI_FILE_PARSE_FAILED(12003, "文件解析失败"),
+    OPENAPI_RESUME_REQUIRED(12004, "必须提供简历文本或简历文件"),
+    OPENAPI_UNAUTHORIZED(12005, "API Key 无效或未提供");
 
     private final Integer code;
     private final String message;

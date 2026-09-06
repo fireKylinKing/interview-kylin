@@ -141,7 +141,6 @@ public final class AsyncTaskStreamConstants {
      * 语音面试会话ID字段
      */
     public static final String FIELD_VOICE_SESSION_ID = "voiceSessionId";
-
     // ========== 知识库问题生成 Stream 配置 ==========
 
     /**
@@ -188,4 +187,14 @@ public final class AsyncTaskStreamConstants {
      * LLM Provider字段
      */
     public static final String FIELD_LLM_PROVIDER = "llmProvider";
+
+    // ========== OpenAPI 分析 Stream 配置 ==========
+
+    public static final String OPENAPI_STREAM_KEY = "openapi:analyze:stream";
+    public static final String OPENAPI_GROUP_NAME = "openapi-group";
+    public static final String OPENAPI_CONSUMER_PREFIX = "openapi-consumer-";
+
+    public static final String FIELD_RESUME_TEXT = "resumeText";
+    public static final String FIELD_JD_TEXT = "jdText";
+    public static final String FIELD_SKILL_ID = "skillId";
 }
