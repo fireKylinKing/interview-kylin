@@ -5,6 +5,7 @@ import interview.guide.common.evaluation.EvaluationReport.CategoryScore;
 import interview.guide.common.evaluation.EvaluationReport.QuestionEvaluation;
 import interview.guide.common.evaluation.EvaluationReport.ReferenceAnswer;
 import interview.guide.common.exception.ErrorCode;
+import interview.guide.infrastructure.file.PiiSanitizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
@@ -43,6 +44,7 @@ public class UnifiedEvaluationService {
     private final StructuredOutputInvoker structuredOutputInvoker;
     private final int evaluationBatchSize;
     private final ResourceLoader resourceLoader;
+    private final PiiSanitizer piiSanitizer;
 
     // 批次评估结果
     private record BatchReportDTO(
@@ -76,9 +78,11 @@ public class UnifiedEvaluationService {
     public UnifiedEvaluationService(
             StructuredOutputInvoker structuredOutputInvoker,
             ResourceLoader resourceLoader,
-            InterviewEvaluationProperties evaluationProperties) throws IOException {
+            InterviewEvaluationProperties evaluationProperties,
+            PiiSanitizer piiSanitizer) throws IOException {
         this.structuredOutputInvoker = structuredOutputInvoker;
         this.resourceLoader = resourceLoader;
+        this.piiSanitizer = piiSanitizer;
         this.systemPromptTemplate = new PromptTemplate(loadPrompt(evaluationProperties.getSystemPromptPath()));
         this.userPromptTemplate = new PromptTemplate(loadPrompt(evaluationProperties.getUserPromptPath()));
         this.outputConverter = new BeanOutputConverter<>(BatchReportDTO.class);
@@ -116,6 +120,7 @@ public class UnifiedEvaluationService {
         if (resumeContext.length() > 3000) {
             resumeContext = resumeContext.substring(0, 3000) + "\n...(简历内容过长，已截断)";
         }
+        resumeContext = piiSanitizer.sanitize(resumeContext);
         String referenceBaseline = referenceContext != null ? referenceContext.trim() : "";
         if (referenceBaseline.length() > MAX_REFERENCE_CONTEXT_CHARS) {
             referenceBaseline = referenceBaseline.substring(0, MAX_REFERENCE_CONTEXT_CHARS)

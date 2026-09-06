@@ -4,6 +4,7 @@ import interview.guide.common.async.AbstractStreamProducer;
 import interview.guide.common.constant.AsyncTaskStreamConstants;
 import interview.guide.common.model.AsyncTaskStatus;
 import interview.guide.common.transaction.TransactionalExecutor;
+import interview.guide.infrastructure.file.PiiSanitizer;
 import interview.guide.infrastructure.redis.RedisService;
 import interview.guide.modules.resume.repository.ResumeRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -21,27 +22,30 @@ public class AnalyzeStreamProducer extends AbstractStreamProducer<AnalyzeStreamP
 
     private final ResumeRepository resumeRepository;
     private final TransactionalExecutor transactionalExecutor;
+    private final PiiSanitizer piiSanitizer;
 
     record AnalyzeTaskPayload(Long resumeId, String content) {}
 
     public AnalyzeStreamProducer(
         RedisService redisService,
         ResumeRepository resumeRepository,
-        TransactionalExecutor transactionalExecutor
+        TransactionalExecutor transactionalExecutor,
+        PiiSanitizer piiSanitizer
     ) {
         super(redisService);
         this.resumeRepository = resumeRepository;
         this.transactionalExecutor = transactionalExecutor;
+        this.piiSanitizer = piiSanitizer;
     }
 
     /**
-     * 发送分析任务到 Redis Stream
+     * 发送分析任务到 Redis Stream（入队前脱敏，确保 Redis 中不含 PII）
      *
      * @param resumeId 简历ID
-     * @param content  简历内容
+     * @param content  简历内容（原文）
      */
     public void sendAnalyzeTask(Long resumeId, String content) {
-        sendTask(new AnalyzeTaskPayload(resumeId, content));
+        sendTask(new AnalyzeTaskPayload(resumeId, piiSanitizer.sanitize(content)));
     }
 
     @Override

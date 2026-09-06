@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "app.storage")
 public class StorageConfigProperties {
 
+    private String mode = "s3";
     private String endpoint;
     private String accessKey;
     private String secretKey;
@@ -21,4 +22,5 @@ public class StorageConfigProperties {
     private Duration apiCallTimeout = Duration.ofSeconds(60);
     private Duration apiCallAttemptTimeout = Duration.ofSeconds(20);
     private boolean autoCreateBucket = true;
+    private String localDir = System.getProperty("java.io.tmpdir") + "/ai-interview/storage";
 }

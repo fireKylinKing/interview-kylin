@@ -2,6 +2,7 @@ package interview.guide.modules.voiceinterview.service;
 
 import interview.guide.common.ai.PromptSanitizer;
 import interview.guide.common.ai.PromptSecurityConstants;
+import interview.guide.infrastructure.file.PiiSanitizer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -10,9 +11,11 @@ import org.springframework.stereotype.Service;
 public class VoiceInterviewPromptService {
 
     private final PromptSanitizer promptSanitizer;
+    private final PiiSanitizer piiSanitizer;
 
-    public VoiceInterviewPromptService(PromptSanitizer promptSanitizer) {
+    public VoiceInterviewPromptService(PromptSanitizer promptSanitizer, PiiSanitizer piiSanitizer) {
         this.promptSanitizer = promptSanitizer;
+        this.piiSanitizer = piiSanitizer;
     }
 
     private static final String VOICE_RESPONSE_CONSTRAINTS = """
@@ -41,7 +44,7 @@ public class VoiceInterviewPromptService {
         prompt.append("\n\n").append(VOICE_RESPONSE_CONSTRAINTS);
 
         if (resumeText != null && !resumeText.isEmpty()) {
-            String safeResume = promptSanitizer.sanitize(resumeText);
+            String safeResume = piiSanitizer.sanitize(promptSanitizer.sanitize(resumeText));
             prompt.append("\n\n【实时语音面试 - 候选人简历内容】\n")
                 .append("你已查阅过候选人简历。首轮仅用一句话说明已查阅，并立即进入首个问题。\n\n")
                 .append("【简历解析文本】\n")

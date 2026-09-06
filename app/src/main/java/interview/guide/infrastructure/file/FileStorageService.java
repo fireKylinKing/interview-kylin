@@ -26,6 +26,9 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
@@ -89,6 +92,15 @@ public class FileStorageService {
             throw new BusinessException(ErrorCode.STORAGE_DOWNLOAD_FAILED, "文件不存在: " + fileKey);
         }
 
+        if (isLocalMode()) {
+            try {
+                return Files.readAllBytes(resolveLocalPath(fileKey));
+            } catch (IOException e) {
+                log.error("下载本地文件失败: {} - {}", fileKey, e.getMessage(), e);
+                throw new BusinessException(ErrorCode.STORAGE_DOWNLOAD_FAILED, "文件下载失败: " + e.getMessage());
+            }
+        }
+
         try {
             GetObjectRequest getRequest = GetObjectRequest.builder()
                     .bucket(storageConfig.getBucket())
@@ -102,6 +114,7 @@ public class FileStorageService {
     }
 
     private static final DateTimeFormatter DATE_PATH_FORMAT = DateTimeFormatter.ofPattern("yyyy/MM/dd");
+    private static final String LOCAL_MODE = "local";
 
     /**
      * 通用文件上传方法
@@ -109,6 +122,11 @@ public class FileStorageService {
     private String uploadFile(MultipartFile file, String prefix) {
         String originalFilename = file.getOriginalFilename();
         String fileKey = generateFileKey(originalFilename, prefix);
+
+        if (isLocalMode()) {
+            return uploadLocalFile(file, fileKey, originalFilename);
+        }
+
 
         try {
             PutObjectRequest putRequest = PutObjectRequest.builder()
@@ -125,8 +143,21 @@ public class FileStorageService {
             log.error("读取上传文件失败: {}", e.getMessage(), e);
             throw new BusinessException(ErrorCode.STORAGE_UPLOAD_FAILED, "文件读取失败");
         } catch (S3Exception e) {
-            log.error("上传文件到RustFS失败: {}", e.getMessage(), e);
+            log.error("上传文件到 RustFS 失败: {}", e.getMessage(), e);
             throw new BusinessException(ErrorCode.STORAGE_UPLOAD_FAILED, "文件存储失败: " + e.getMessage());
+        }
+    }
+
+    private String uploadLocalFile(MultipartFile file, String fileKey, String originalFilename) {
+        Path target = resolveLocalPath(fileKey);
+        try (InputStream inputStream = file.getInputStream()) {
+            Files.createDirectories(target.getParent());
+            Files.copy(inputStream, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            log.info("文件已保存到本地存储: {} -> {}", originalFilename, target);
+            return fileKey;
+        } catch (IOException e) {
+            log.error("保存文件到本地存储失败: {}", e.getMessage(), e);
+            throw new BusinessException(ErrorCode.STORAGE_UPLOAD_FAILED, "文件本地存储失败");
         }
     }
 
@@ -134,6 +165,10 @@ public class FileStorageService {
      * 检查文件是否存在
      */
     public boolean fileExists(String fileKey) {
+        if (isLocalMode()) {
+            return Files.exists(resolveLocalPath(fileKey));
+        }
+
         try {
             HeadObjectRequest headRequest = HeadObjectRequest.builder()
                     .bucket(storageConfig.getBucket())
@@ -153,6 +188,15 @@ public class FileStorageService {
      * 获取文件大小（字节）
      */
     public long getFileSize(String fileKey) {
+        if (isLocalMode()) {
+            try {
+                return Files.size(resolveLocalPath(fileKey));
+            } catch (IOException e) {
+                log.error("获取本地文件大小失败: {} - {}", fileKey, e.getMessage(), e);
+                throw new BusinessException(ErrorCode.STORAGE_DOWNLOAD_FAILED, "获取文件信息失败");
+            }
+        }
+
         try {
             HeadObjectRequest headRequest = HeadObjectRequest.builder()
                     .bucket(storageConfig.getBucket())
@@ -181,6 +225,17 @@ public class FileStorageService {
             return;
         }
 
+        if (isLocalMode()) {
+            try {
+                Files.deleteIfExists(resolveLocalPath(fileKey));
+                log.info("本地文件删除成功: {}", fileKey);
+                return;
+            } catch (IOException e) {
+                log.error("删除本地文件失败: {} - {}", fileKey, e.getMessage(), e);
+                throw new BusinessException(ErrorCode.STORAGE_DELETE_FAILED, "文件删除失败: " + e.getMessage());
+            }
+        }
+
         try {
             DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
                     .bucket(storageConfig.getBucket())
@@ -195,6 +250,9 @@ public class FileStorageService {
     }
 
     public String getFileUrl(String fileKey) {
+        if (isLocalMode()) {
+            return resolveLocalPath(fileKey).toUri().toString();
+        }
         return String.format("%s/%s/%s", storageConfig.getEndpoint(), storageConfig.getBucket(), fileKey);
     }
 
@@ -202,6 +260,16 @@ public class FileStorageService {
      * 确保存储桶存在
      */
     public void ensureBucketExists() {
+        if (isLocalMode()) {
+            try {
+                Files.createDirectories(Path.of(storageConfig.getLocalDir()));
+                log.info("本地存储目录已就绪: {}", storageConfig.getLocalDir());
+            } catch (IOException e) {
+                log.error("创建本地存储目录失败: {}", e.getMessage(), e);
+            }
+            return;
+        }
+
         try {
             HeadBucketRequest headRequest = HeadBucketRequest.builder()
                     .bucket(storageConfig.getBucket())
@@ -255,6 +323,19 @@ public class FileStorageService {
         String uuid = UUID.randomUUID().toString().substring(0, 8);
         String safeName = sanitizeFilename(originalFilename);
         return String.format("%s/%s/%s_%s", prefix, datePath, uuid, safeName);
+    }
+
+    private boolean isLocalMode() {
+        return LOCAL_MODE.equalsIgnoreCase(storageConfig.getMode());
+    }
+
+    private Path resolveLocalPath(String fileKey) {
+        Path root = Path.of(storageConfig.getLocalDir()).toAbsolutePath().normalize();
+        Path target = root.resolve(fileKey).normalize();
+        if (!target.startsWith(root)) {
+            throw new BusinessException(ErrorCode.STORAGE_UPLOAD_FAILED, "非法文件路径");
+        }
+        return target;
     }
 
     /**

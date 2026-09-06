@@ -4,13 +4,13 @@ import interview.guide.common.ai.LlmProviderRegistry;
 import interview.guide.common.ai.PromptSanitizer;
 import interview.guide.common.ai.PromptSecurityConstants;
 import interview.guide.common.ai.StructuredOutputInvoker;
+import interview.guide.infrastructure.file.PiiSanitizer;
 import interview.guide.common.constant.CommonConstants.InterviewDefaults;
 import interview.guide.common.exception.BusinessException;
 import interview.guide.common.exception.ErrorCode;
 import interview.guide.modules.interview.model.HistoricalQuestion;
 import interview.guide.modules.interview.model.InterviewQuestionDTO;
 import interview.guide.modules.interview.skill.InterviewSkillService;
-import interview.guide.modules.interview.skill.InterviewSkillService.CategoryDTO;
 import interview.guide.modules.interview.skill.InterviewSkillService.SkillDTO;
 import interview.guide.modules.interview.skill.InterviewSkillService.SkillCategoryDTO;
 import org.slf4j.Logger;
@@ -80,6 +80,7 @@ public class InterviewQuestionService {
     private final InterviewSkillService skillService;
     private final LlmProviderRegistry llmProviderRegistry;
     private final PromptSanitizer promptSanitizer;
+    private final PiiSanitizer piiSanitizer;
     private final ExecutorService questionExecutor;
     private final int followUpCount;
 
@@ -94,11 +95,13 @@ public class InterviewQuestionService {
             InterviewQuestionProperties properties,
             ResourceLoader resourceLoader,
             LlmProviderRegistry llmProviderRegistry,
-            PromptSanitizer promptSanitizer) throws IOException {
+            PromptSanitizer promptSanitizer,
+            PiiSanitizer piiSanitizer) throws IOException {
         this.structuredOutputInvoker = structuredOutputInvoker;
         this.skillService = skillService;
         this.llmProviderRegistry = llmProviderRegistry;
         this.promptSanitizer = promptSanitizer;
+        this.piiSanitizer = piiSanitizer;
         this.questionExecutor = Executors.newVirtualThreadPerTaskExecutor();
         this.skillSystemPromptTemplate = loadTemplate(resourceLoader, properties.getQuestionSystemPromptPath());
         this.skillUserPromptTemplate = loadTemplate(resourceLoader, properties.getQuestionUserPromptPath());
@@ -124,10 +127,9 @@ public class InterviewQuestionService {
             String resumeText,
             int questionCount,
             List<HistoricalQuestion> historicalQuestions,
-            List<CategoryDTO> customCategories,
             String jdText) {
 
-        SkillDTO skill = resolveSkill(skillId, customCategories, jdText);
+        SkillDTO skill = skillService.getSkill(skillId);
         String difficultyDesc = resolveDifficulty(difficulty);
         ChatClient questionChatClient =
             llmProviderRegistry.getPlainChatClient(llmProvider);
@@ -136,7 +138,7 @@ public class InterviewQuestionService {
         String historicalSection = buildHistoricalSection(historicalQuestions);
         if (!hasResume) {
             return generateDirectionOnly(questionChatClient, skill, difficultyDesc, questionCount,
-                historicalSection);
+                historicalSection, jdText);
         }
 
         int resumeCount = Math.max(1, (int) Math.round(questionCount * RESUME_QUESTION_RATIO));
@@ -147,12 +149,12 @@ public class InterviewQuestionService {
 
         CompletableFuture<List<InterviewQuestionDTO>> resumeFuture = CompletableFuture.supplyAsync(
             () -> generateResumeQuestions(questionChatClient, resumeText, resumeCount, skill,
-                difficultyDesc, historicalSection),
+                difficultyDesc, historicalSection, jdText),
             questionExecutor);
 
         CompletableFuture<List<InterviewQuestionDTO>> directionFuture = CompletableFuture.supplyAsync(
             () -> generateDirectionOnly(questionChatClient, skill, difficultyDesc, directionCount,
-                historicalSection),
+                historicalSection, jdText),
             questionExecutor);
 
         List<InterviewQuestionDTO> resumeQuestions;
@@ -163,7 +165,7 @@ public class InterviewQuestionService {
             log.error("简历题生成失败，降级为全方向题", e.getCause());
             directionFuture.cancel(true);
             return generateDirectionOnly(questionChatClient, skill, difficultyDesc, questionCount,
-                historicalSection);
+                historicalSection, jdText);
         }
 
         try {
@@ -189,7 +191,7 @@ public class InterviewQuestionService {
 
     private List<InterviewQuestionDTO> generateResumeQuestions(
             ChatClient questionClient, String resumeText, int questionCount,
-            SkillDTO skill, String difficultyDesc, String historicalSection) {
+            SkillDTO skill, String difficultyDesc, String historicalSection, String jdText) {
         try {
             Map<String, Object> variables = new HashMap<>();
             variables.put("questionCount", questionCount);
@@ -197,8 +199,9 @@ public class InterviewQuestionService {
             variables.put("skillName", skill.name());
             variables.put("skillDescription", skill.description() != null ? skill.description() : "");
             variables.put("difficultyDescription", difficultyDesc);
-            variables.put("resumeText", resumeText);
+            variables.put("resumeText", piiSanitizer.sanitize(resumeText));
             variables.put("historicalSection", historicalSection);
+            variables.put("jdSection", buildJdSection(jdText));
 
             String systemPrompt = resumeSystemPromptTemplate.render()
                 + buildSkillPersonaSection(skill)
@@ -225,7 +228,7 @@ public class InterviewQuestionService {
 
     private List<InterviewQuestionDTO> generateDirectionOnly(
             ChatClient questionClient, SkillDTO skill, String difficultyDesc,
-            int questionCount, String historicalSection) {
+            int questionCount, String historicalSection, String jdText) {
         Map<String, Integer> allocation = skillService.calculateAllocation(skill.categories(), questionCount);
         String allocationTable = skillService.buildAllocationDescription(allocation, skill.categories());
 
@@ -242,7 +245,7 @@ public class InterviewQuestionService {
             variables.put("allocationTable", allocationTable);
             variables.put("historicalSection", historicalSection);
             variables.put("referenceSection", skillService.buildReferenceSection(skill, allocation));
-            variables.put("jdSection", buildJdSection(skill.sourceJd()));
+            variables.put("jdSection", buildJdSection(jdText));
 
             String systemPrompt = skillSystemPromptTemplate.render()
                 + buildSkillPersonaSection(skill)
@@ -291,14 +294,6 @@ public class InterviewQuestionService {
                 q.topicSummary(), q.isFollowUp(), newParent));
         }
         return merged;
-    }
-
-    private SkillDTO resolveSkill(String skillId, List<CategoryDTO> customCategories, String jdText) {
-        if (InterviewSkillService.CUSTOM_SKILL_ID.equals(skillId)
-                && customCategories != null && !customCategories.isEmpty()) {
-            return skillService.buildCustomSkill(customCategories, jdText != null ? jdText : "");
-        }
-        return skillService.getSkill(skillId);
     }
 
     private String resolveDifficulty(String difficulty) {
