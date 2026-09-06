@@ -14,7 +14,6 @@ import { getScoreTextColor } from '../utils/score';
 import { formatDateTime } from '../utils/date';
 import {
   useInterviewConfig,
-  CUSTOM_SKILL_ID,
   type InterviewMode,
   DIFFICULTY_OPTIONS,
 } from '../hooks/useInterviewConfig';
@@ -91,11 +90,7 @@ export default function InterviewHubPage() {
 
   const handleStart = () => {
     const selectedSkill = config.selectedSkill;
-    const skillName = selectedSkill?.name || '自定义';
-
-    if (config.isCustomStartDisabled) {
-      return;
-    }
+    const skillName = selectedSkill?.name || '';
 
     if (config.mode === 'text') {
       navigate(ROUTES.interviewCreate(crypto.randomUUID()), {
@@ -107,8 +102,7 @@ export default function InterviewHubPage() {
             difficulty: config.difficulty,
             questionCount: config.questionCount,
             llmProvider: config.llmProvider,
-            jdText: config.isCustomSkill ? config.parsedCustomJdText : undefined,
-            customCategories: config.isCustomSkill ? config.customCategories : undefined,
+            jdText: config.jdText || undefined,
           },
         },
       });
@@ -239,85 +233,9 @@ export default function InterviewHubPage() {
                     </button>
                   );
                 })}
-                {/* 自定义按钮 */}
-                <button
-                  onClick={() => config.setSkillId(CUSTOM_SKILL_ID)}
-                  className={`flex items-center gap-2.5 p-3 rounded-xl border-2 border-dashed transition-all duration-200 text-left
-                    ${config.isCustomSkill
-                      ? 'border-primary-500 bg-primary-50/80 dark:bg-primary-900/20'
-                      : 'border-slate-200 dark:border-slate-700 hover:border-primary-300 dark:hover:border-primary-600'
-                    }`}
-                >
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                    config.isCustomSkill ? 'bg-primary-100 dark:bg-primary-900/50' : 'bg-slate-100 dark:bg-slate-700'
-                  }`}>
-                    {(() => {
-                      const CustomIcon = getSkillIcon(CUSTOM_SKILL_ID);
-                      return CustomIcon
-                        ? <CustomIcon className={`w-4 h-4 ${config.isCustomSkill ? 'text-primary-600 dark:text-primary-400' : 'text-slate-500 dark:text-slate-400'}`} />
-                        : <span className="text-sm">✨</span>;
-                    })()}
-                  </div>
-                  <span className={`text-xs font-medium ${config.isCustomSkill ? 'text-primary-700 dark:text-primary-300' : 'text-slate-500 dark:text-slate-400'}`}>
-                    自定义 JD
-                  </span>
-                </button>
               </div>
             )}
           </div>
-
-          {/* 自定义 JD 输入 */}
-          <AnimatePresence>
-            {config.isCustomSkill && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden"
-              >
-                <div className="space-y-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
-                  <textarea
-                    value={config.customJdText}
-                    onChange={e => config.setCustomJdText(e.target.value)}
-                    placeholder="粘贴目标岗位的职位描述（JD），至少 50 字..."
-                    rows={4}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700
-                      bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white
-                      placeholder:text-slate-400 resize-none focus:outline-none focus:ring-2
-                      focus:ring-primary-500/50 focus:border-primary-400 transition-shadow"
-                  />
-                  <button
-                    onClick={config.handleParseJd}
-                    disabled={config.parsingJd || !config.customJdText}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg
-                      bg-primary-500 text-white hover:bg-primary-600 disabled:opacity-50
-                      disabled:cursor-not-allowed transition-colors"
-                  >
-                    {config.parsingJd ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                    解析面试方向
-                  </button>
-                  {config.customCategories.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {config.customCategories.map((cat, i) => (
-                        <span
-                          key={i}
-                          className="px-3 py-1 text-xs font-medium rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300"
-                        >
-                          {cat.label}
-                          <span className="ml-1 text-[10px] text-primary-500">({cat.priority})</span>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {config.jdNeedsReparse && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400">
-                      JD 已修改，请重新解析后再开始面试。
-                    </p>
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
           {/* 难度 */}
           <div>
@@ -387,6 +305,26 @@ export default function InterviewHubPage() {
                   </select>
                 </div>
 
+                {/* JD 输入（可选） */}
+                <div>
+                  <label className="flex items-center gap-2 mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    招聘需求 JD（可选）
+                  </label>
+                  <textarea
+                    value={config.jdText}
+                    onChange={e => config.setJdText(e.target.value)}
+                    placeholder="粘贴目标岗位的职位描述，用于定制化面试题..."
+                    rows={3}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700
+                      bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white
+                      placeholder:text-slate-400 resize-none focus:outline-none focus:ring-2
+                      focus:ring-primary-500/50 focus:border-primary-400 transition-shadow"
+                  />
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    提供 JD 可使面试题更贴合具体岗位要求
+                  </p>
+                </div>
+
                 {/* 文字面试 - 题目数 */}
                 {config.mode === 'text' && (
                   <div>
@@ -447,7 +385,6 @@ export default function InterviewHubPage() {
             onClick={handleStart}
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}
-            disabled={config.isCustomStartDisabled}
             className="w-full px-6 py-3 rounded-xl font-semibold text-sm transition-all
               bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700
               text-white shadow-lg shadow-primary-500/25 disabled:opacity-50 disabled:cursor-not-allowed"

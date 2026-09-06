@@ -4,7 +4,7 @@ import {
   X, Sparkles, FileText, Mic,
   FileStack, ChevronDown, ChevronUp, Loader2
 } from 'lucide-react';
-import { useInterviewConfig, CUSTOM_SKILL_ID, DIFFICULTY_OPTIONS, type InterviewMode, type Difficulty } from '../hooks/useInterviewConfig';
+import { useInterviewConfig, DIFFICULTY_OPTIONS, type InterviewMode, type Difficulty } from '../hooks/useInterviewConfig';
 import { getSkillIcon } from '../utils/skillIcons';
 
 // Re-export for backward compatibility
@@ -24,8 +24,7 @@ export interface UnifiedInterviewConfig {
   projectEnabled: boolean;
   hrEnabled: boolean;
   plannedDuration: number;
-  customJdText?: string;
-  customCategories?: import('../api/skill').CategoryDTO[];
+  jdText?: string;
 }
 
 interface UnifiedInterviewModalProps {
@@ -69,14 +68,10 @@ export default function UnifiedInterviewModal({
   const handleStart = () => {
     const selectedSkill = config.selectedSkill;
 
-    if (config.isCustomStartDisabled) {
-      return;
-    }
-
     onStart({
       mode: config.mode,
       skillId: config.skillId,
-      skillName: selectedSkill?.name || '自定义',
+      skillName: selectedSkill?.name || '',
       difficulty: config.difficulty,
       resumeId: config.resumeId,
       llmProvider: config.llmProvider,
@@ -85,8 +80,7 @@ export default function UnifiedInterviewModal({
       projectEnabled: true,
       hrEnabled: true,
       plannedDuration: config.plannedDuration,
-      customJdText: config.isCustomSkill ? config.parsedCustomJdText : undefined,
-      customCategories: config.isCustomSkill ? config.customCategories : undefined,
+      jdText: config.jdText || undefined,
     });
   };
 
@@ -236,87 +230,9 @@ export default function UnifiedInterviewModal({
                           </button>
                         );
                       })}
-                      {/* 自定义按钮 */}
-                      <button
-                        onClick={() => config.setSkillId(CUSTOM_SKILL_ID)}
-                        className={`flex items-center gap-3 p-3 rounded-xl border-2 border-dashed transition-all duration-200 text-left
-                          ${config.isCustomSkill
-                            ? 'border-primary-500 bg-primary-50/80 dark:bg-primary-900/20'
-                            : 'border-slate-200 dark:border-slate-700 hover:border-primary-300 dark:hover:border-primary-600'
-                          }`}
-                      >
-                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                          config.isCustomSkill ? 'bg-primary-100 dark:bg-primary-900/50' : 'bg-slate-100 dark:bg-slate-700'
-                        }`}>
-                          {(() => {
-                            const CustomIcon = getSkillIcon(CUSTOM_SKILL_ID);
-                            return CustomIcon
-                              ? <CustomIcon className={`w-5 h-5 ${config.isCustomSkill ? 'text-primary-600 dark:text-primary-400' : 'text-slate-500 dark:text-slate-400'}`} />
-                              : <span className="text-base">✨</span>;
-                          })()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <span className={`text-xs font-medium block ${config.isCustomSkill ? 'text-primary-700 dark:text-primary-300' : 'text-slate-500 dark:text-slate-400'}`}>
-                            自定义 JD
-                          </span>
-                        </div>
-                      </button>
                     </div>
                   )}
                 </div>
-
-                {/* 自定义 JD 输入 */}
-                <AnimatePresence>
-                  {config.isCustomSkill && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="space-y-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
-                        <textarea
-                          value={config.customJdText}
-                          onChange={e => config.setCustomJdText(e.target.value)}
-                          placeholder="粘贴目标岗位的职位描述（JD），至少 50 字..."
-                          rows={4}
-                          className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700
-                            bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white
-                            placeholder:text-slate-400 resize-none focus:outline-none focus:ring-2
-                            focus:ring-primary-500/50 focus:border-primary-400 transition-shadow"
-                        />
-                        <button
-                          onClick={config.handleParseJd}
-                          disabled={config.parsingJd || !config.customJdText}
-                          className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg
-                            bg-primary-500 text-white hover:bg-primary-600 disabled:opacity-50
-                            disabled:cursor-not-allowed transition-colors"
-                        >
-                          {config.parsingJd ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                          解析面试方向
-                        </button>
-                        {config.customCategories.length > 0 && (
-                          <div className="flex flex-wrap gap-2">
-                            {config.customCategories.map((cat, i) => (
-                              <span
-                                key={i}
-                                className="px-3 py-1 text-xs font-medium rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300"
-                              >
-                                {cat.label}
-                                <span className="ml-1 text-[10px] text-primary-500">({cat.priority})</span>
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        {config.jdNeedsReparse && (
-                          <p className="text-xs text-amber-600 dark:text-amber-400">
-                            JD 已修改，请重新解析后再开始面试。
-                          </p>
-                        )}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
 
                 {/* 难度 */}
                 <div>
@@ -384,6 +300,26 @@ export default function UnifiedInterviewModal({
                             <option key={r.id} value={r.id}>{r.filename}</option>
                           ))}
                         </select>
+                      </div>
+
+                      {/* JD 输入（可选） */}
+                      <div>
+                        <label className="flex items-center gap-2 mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                          招聘需求 JD（可选）
+                        </label>
+                        <textarea
+                          value={config.jdText}
+                          onChange={e => config.setJdText(e.target.value)}
+                          placeholder="粘贴目标岗位的职位描述，用于定制化面试题..."
+                          rows={3}
+                          className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700
+                            bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white
+                            placeholder:text-slate-400 resize-none focus:outline-none focus:ring-2
+                            focus:ring-primary-500/50 focus:border-primary-400 transition-shadow"
+                        />
+                        <p className="mt-1 text-[11px] text-slate-400">
+                          提供 JD 可使面试题更贴合具体岗位要求
+                        </p>
                       </div>
 
                       {/* 文字面试 - 题目数 */}
@@ -457,10 +393,9 @@ export default function UnifiedInterviewModal({
                     onClick={handleStart}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    disabled={config.isCustomStartDisabled}
                     className="flex-1 px-5 py-3 rounded-xl font-semibold text-sm transition-all
                       bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700
-                      text-white shadow-lg shadow-primary-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                      text-white shadow-lg shadow-primary-500/25"
                   >
                     {startButtonText}
                   </motion.button>

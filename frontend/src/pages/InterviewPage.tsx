@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from 'react';
 import {motion} from 'framer-motion';
+import {Download} from 'lucide-react';
 import {interviewApi} from '../api/interview';
 import ConfirmDialog from '../components/ConfirmDialog';
 import InterviewChatPanel from '../components/InterviewChatPanel';
@@ -67,6 +68,52 @@ export default function Interview({
   const difficulty = initialConfig?.difficulty ?? 'mid';
   const customCategories = initialConfig?.customCategories;
   const jdText = initialConfig?.jdText;
+
+  const formatQuestionLabel = (question: InterviewQuestion) => {
+    const parts = [question.category, question.type].filter(Boolean);
+    return parts.length > 0 ? ` [${parts.join(' / ')}]` : '';
+  };
+
+  const buildQuestionsMarkdown = (targetSession: InterviewSession) => {
+    const lines = [
+      '# 模拟面试题目',
+      '',
+      `会话 ID: ${targetSession.sessionId}`,
+      `题目数量: ${targetSession.questions.length}`,
+      '',
+    ];
+
+    targetSession.questions.forEach((question, index) => {
+      const displayIndex = Number.isFinite(question.questionIndex)
+        ? question.questionIndex + 1
+        : index + 1;
+
+      lines.push(
+        `## ${displayIndex}.${formatQuestionLabel(question)}`,
+        '',
+        question.question.trim(),
+        '',
+      );
+    });
+
+    return lines.join('\n');
+  };
+
+  const handleExportQuestions = () => {
+    if (!session || session.questions.length === 0) return;
+
+    const blob = new Blob([buildQuestionsMarkdown(session)], {
+      type: 'text/markdown;charset=utf-8',
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `interview-questions-${session.sessionId.slice(-8)}.md`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
 
   // 自动开始面试（恢复已有会话 或 创建新会话）
   useEffect(() => {
@@ -276,6 +323,18 @@ export default function Interview({
             <line x1="12" y1="19" x2="12" y2="23" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             <line x1="8" y1="23" x2="16" y2="23" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
+        )}
+        actions={(
+          <button
+            type="button"
+            onClick={handleExportQuestions}
+            disabled={session.questions.length === 0}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 shadow-sm hover:border-primary-300 hover:text-primary-600 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="导出面试题目"
+          >
+            <Download className="w-4 h-4" />
+            <span className="text-sm font-medium">导出题目</span>
+          </button>
         )}
       />
 

@@ -34,8 +34,4 @@ export const skillApi = {
   async getSkill(id: string): Promise<SkillDTO> {
     return request.get<SkillDTO>(`/api/interview/skills/${id}`);
   },
-
-  async parseJd(jdText: string): Promise<CategoryDTO[]> {
-    return request.post<CategoryDTO[]>('/api/interview/skills/parse-jd', { jdText });
-  },
 };

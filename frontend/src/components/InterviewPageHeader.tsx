@@ -5,12 +5,14 @@ interface InterviewPageHeaderProps {
   title: string;
   subtitle: string;
   icon: ReactNode;
+  actions?: ReactNode;
 }
 
 export default function InterviewPageHeader({
   title,
   subtitle,
   icon,
+  actions,
 }: InterviewPageHeaderProps) {
   return (
     <motion.div
@@ -25,6 +27,11 @@ export default function InterviewPageHeader({
         {title}
       </h1>
       <p className="text-slate-500 dark:text-slate-400">{subtitle}</p>
+      {actions && (
+        <div className="mt-4 flex items-center justify-center gap-3">
+          {actions}
+        </div>
+      )}
     </motion.div>
   );
 }

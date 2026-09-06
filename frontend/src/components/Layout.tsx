@@ -54,6 +54,7 @@ export default function Layout() {
             difficulty: config.difficulty,
             questionCount: config.questionCount,
             llmProvider: config.llmProvider,
+            jdText: config.jdText,
           },
         },
       });

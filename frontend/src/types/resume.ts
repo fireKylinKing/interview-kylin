@@ -29,6 +29,7 @@ export interface ScoreDetail {
   skillMatchScore: number;   // 技能匹配度 (0-25)
   expressionScore: number;   // 表达专业性 (0-15)
   projectScore: number;      // 项目经验 (0-15)
+  jdAlignmentScore: number;  // JD 对齐度 (0-20)，无 JD 时为 0
 }
 
 export interface Suggestion {

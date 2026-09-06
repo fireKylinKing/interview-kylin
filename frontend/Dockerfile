@@ -8,7 +8,7 @@ WORKDIR /app
 # 1. 优先复制依赖定义文件
 # 技巧：利用 Docker 缓存层机制。只要 package.json 不变，这一层就会被缓存，
 # 避免每次构建都重新下载 npm 包，显著加快构建速度。
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 # 2. 安装依赖
 # npm install -g pnpm: 全局安装 pnpm 包管理器

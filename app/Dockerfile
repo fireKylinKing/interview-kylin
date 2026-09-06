@@ -51,5 +51,6 @@ COPY --from=builder /workspace/app/build/libs/*.jar app.jar
 # 声明容器将暴露的端口（仅作为文档说明，实际映射需在 docker-compose 中配置）
 EXPOSE 8080
 
-# 容器启动时执行的命令
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# 支持 JAVA_OPTS 环境变量调优 JVM 参数
+ENV JAVA_OPTS=""
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
