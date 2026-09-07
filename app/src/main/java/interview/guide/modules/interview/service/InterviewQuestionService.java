@@ -87,7 +87,7 @@ public class InterviewQuestionService {
     private record QuestionListDTO(List<QuestionDTO> questions) {}
 
     private record QuestionDTO(String question, String type, String category,
-                               String topicSummary, List<String> followUps) {}
+                               String topicSummary, List<String> followUps, String referenceAnswer) {}
 
     public InterviewQuestionService(
             StructuredOutputInvoker structuredOutputInvoker,
@@ -335,7 +335,8 @@ public class InterviewQuestionService {
             }
             String type = (q.type() != null && !q.type().isBlank()) ? q.type().toUpperCase() : DEFAULT_QUESTION_TYPE;
             int mainQuestionIndex = index;
-            questions.add(InterviewQuestionDTO.create(index++, q.question(), type, q.category(), q.topicSummary(), false, null));
+            questions.add(InterviewQuestionDTO.create(
+                index++, q.question(), type, q.category(), q.topicSummary(), false, null, q.referenceAnswer()));
 
             List<String> followUps = sanitizeFollowUps(q.followUps());
             for (int i = 0; i < followUps.size(); i++) {

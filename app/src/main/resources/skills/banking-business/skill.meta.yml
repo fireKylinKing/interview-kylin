@@ -1,0 +1,25 @@
+displayName: 银行业务条线
+display:
+  icon: B
+  gradient: from-amber-500 to-orange-600
+  iconBg: bg-amber-100 dark:bg-amber-900/30
+  iconColor: text-amber-600 dark:bg-amber-400
+categories:
+  - key: CUSTOMER_MGMT
+    label: 客户经营
+    priority: CORE
+  - key: RISK_COMPLIANCE
+    label: 风险合规
+    priority: CORE
+  - key: SERVICE_SCENARIO
+    label: 服务场景
+    priority: CORE
+  - key: MARKETING_ANALYSIS
+    label: 市场与数据分析
+    priority: NORMAL
+  - key: TEAMWORK
+    label: 协作沟通
+    priority: NORMAL
+  - key: MOTIVATION
+    label: 求职动机与稳定性
+    priority: ALWAYS_ONE

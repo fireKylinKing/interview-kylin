@@ -29,9 +29,15 @@ public record InterviewQuestionDTO(
 
     public static InterviewQuestionDTO create(int index, String question, String type, String category,
                                                String topicSummary, boolean isFollowUp, Integer parentQuestionIndex) {
+        return create(index, question, type, category, topicSummary, isFollowUp, parentQuestionIndex, null);
+    }
+
+    public static InterviewQuestionDTO create(int index, String question, String type, String category,
+                                               String topicSummary, boolean isFollowUp, Integer parentQuestionIndex,
+                                               String referenceAnswer) {
         return new InterviewQuestionDTO(
             index, question, type, category, topicSummary, null, null, null, isFollowUp, parentQuestionIndex,
-            null, null, null, null);
+            referenceAnswer, null, null, null);
     }
 
     public static InterviewQuestionDTO fromQuestionBank(int index, String question, String type,
